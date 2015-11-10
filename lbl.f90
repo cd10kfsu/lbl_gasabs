@@ -21,14 +21,14 @@ program lbl
 !$$$ end documentation block
   use type_define, only : i4, r8, &
                            t_atmos, t_absline, t_srf
-  use math_func, only : linspace, trpint
+  use math_func, only : linspace, trpint, linterp1d
   use atmos, only : destroy_atmos
   use gas_absorption, only : co2, h2o, calculate_layer_od, destroy_absline
 
   implicit none
 
   type(t_atmos) :: atms
-  type(t_srf) :: chan
+  type(t_srf) :: chan, tmpchan
 
 ! vars related to SRF
   real(r8) :: wv_center
@@ -179,6 +179,7 @@ program lbl
 !---------------------------------------------------------------------
 ! 3. load instrument Spectral Response Function
 !---------------------------------------------------------------------
+!---Option 1: artificial SRF
   !wv_center = 668.18_r8
   !wv_half = 1.5_r8
   !wv0 = wv_center - wv_half
@@ -192,22 +193,49 @@ program lbl
   !   Write(500,*) i, chan%wv(i), chan%weight(i)
   !Enddo
 
+!---Option 2: operational SRF
+  !Open(60,file="../SRF/rtcoef_noaa_18_hirs_srf_ch01.txt",action="read")
+  !Read(60,*); Read(60,*)  !skip two rows
+  !Read(60,*) chan%npt
+  !chan%npt = 2*chan%npt -1 
+  !Write(6,*) "SRF points=", chan%npt
+  !Allocate( chan%wv(chan%npt), chan%weight(chan%npt) )
+  !Read(60,*) !skip one row
+  !Do i = 1, chan%npt, 2
+  !   Read(60,*) chan%wv(i), chan%weight(i)
+  !   Write(6,*) "wv, response=", chan%wv(i), chan%weight(i)
+  !Enddo
+  !Do i = 2, chan%npt - 1, 2
+  !   chan%wv(i) = ( chan%wv(i-1) + chan%wv(i+1) )/2
+  !   chan%weight(i) = ( chan%weight(i-1) + chan%weight(i+1) ) /2
+  !Enddo
+  !Close(60)
+
+!---Option 3: high-density SRF interpolated from operational SRF
   Open(60,file="../SRF/rtcoef_noaa_18_hirs_srf_ch01.txt",action="read")
-  Read(60,*); Read(60,*)  !skip two lines
-  Read(60,*) chan%npt
-  chan%npt = 2*chan%npt -1 
-  Write(6,*) "SRF points=", chan%npt
-  Allocate( chan%wv(chan%npt), chan%weight(chan%npt) )
-  Read(60,*) !skip one line
-  Do i = 1, chan%npt, 2
-     Read(60,*) chan%wv(i), chan%weight(i)
-     Write(6,*) "wv, response=", chan%wv(i), chan%weight(i)
-  Enddo
-  Do i = 2, chan%npt - 1, 2
-     chan%wv(i) = ( chan%wv(i-1) + chan%wv(i+1) )/2
-     chan%weight(i) = ( chan%weight(i-1) + chan%weight(i+1) ) /2
+  Read(60,*); Read(60,*)  !skip two rows
+  Read(60,*) tmpchan%npt
+  Write(6,*) "original SRF points=", tmpchan%npt
+  Allocate( tmpchan%wv(tmpchan%npt), tmpchan%weight(tmpchan%npt) )
+  Read(60,*) !skip one row
+  Do i = 1, tmpchan%npt
+     Read(60,*) tmpchan%wv(i), tmpchan%weight(i)
+     !Write(6,*) "wv, response=", tmpchan%wv(i), tmpchan%weight(i)
   Enddo
   Close(60)
+  wv0 = tmpchan%wv(1)
+  wv1 = tmpchan%wv(tmpchan%npt)
+  chan%npt = 20 * tmpchan%npt 
+  Write(6,*) "interpolated SRF points=", tmpchan%npt
+  Call linspace( wv0, wv1, chan%npt, chan%wv )
+  Allocate( chan%weight(chan%npt) )
+  Do i = 1, chan%npt
+     chan%weight(i) = linterp1d( tmpchan%npt, tmpchan%wv, tmpchan%weight, &
+                      chan%wv(i) )
+  Enddo
+  Deallocate( tmpchan%weight, tmpchan%wv )
+
+
 
   Write(6,*) "Finish SRF structure"
 
@@ -276,8 +304,9 @@ program lbl
      ! TOA                    SFC
      !  o----------o-----------o
      ! lev1       lev2        lev3
-     !      lay1        lay2
+     !       lay1        lay2
      ! trans1     tans2       trans3
+     !        od1         od2
      inst_wf(k) = ABS(inst_trans(k+1)-inst_trans(k)) / &
                  ( LOG(atms%pres(k+1)/atms%pres(k) ) )
      write(1000,*) atms%presl(k), inst_wf(k)

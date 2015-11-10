@@ -108,6 +108,10 @@ function trpint( n, x, y ) result (integral)
   Do i = 1, n-1
      integral = integral + (y(i+1)+y(i))*(x(i+1)-x(i))/2
   Enddo
+  !Do i = 1, n-2, 2
+  !   integral = integral + &
+  !              (x(i+2)-x(i))*( y(i)+4*y(i+1)+y(i+2) )/6
+  !Enddo
   
 endfunction
 
