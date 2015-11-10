@@ -1,0 +1,3 @@
+#!/bin/bash
+
+ifort -warn type_define.f90 math_func.f90 atmos.f90 gas_absorption.f90 lbl.f90 -o lbl.exe
