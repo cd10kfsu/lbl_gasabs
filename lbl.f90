@@ -5,8 +5,8 @@ program lbl
 !    programmer: da,cheng        org: umd      date: 2015-Nov-08
 !
 !  purpose:
-!    a simplified line-by-line model by using Lorentz line shape,
-!    only consider CO2, H2O
+!    a simplified line-by-line model for gas absorption. 
+!    Using Lorentz line shape, and only considering CO2_626, H2O_161
 !
 !  revision history:
 !    2015-Nov-08     da    - creator
@@ -179,18 +179,35 @@ program lbl
 !---------------------------------------------------------------------
 ! 3. load instrument Spectral Response Function
 !---------------------------------------------------------------------
-  wv_center = 668.18_r8
-  wv_half = 1.5_r8
-  wv0 = wv_center - wv_half
-  wv1 = wv_center + wv_half
-  chan%npt = 301
-  Call linspace( wv0, wv1, chan%npt, chan%wv )
-  Allocate( chan%weight(chan%npt) )
-  chan%weight = 1
+  !wv_center = 668.18_r8
+  !wv_half = 1.5_r8
+  !wv0 = wv_center - wv_half
+  !wv1 = wv_center + wv_half
+  !chan%npt = 301
+  !Call linspace( wv0, wv1, chan%npt, chan%wv )
+  !Allocate( chan%weight(chan%npt) )
+  !chan%weight = 1
   ! check point: check Spectral Response Function (SRF)
   !Do i = 1, chan%npt
   !   Write(500,*) i, chan%wv(i), chan%weight(i)
   !Enddo
+
+  Open(60,file="../SRF/rtcoef_noaa_18_hirs_srf_ch01.txt",action="read")
+  Read(60,*); Read(60,*)  !skip two lines
+  Read(60,*) chan%npt
+  chan%npt = 2*chan%npt -1 
+  Write(6,*) "SRF points=", chan%npt
+  Allocate( chan%wv(chan%npt), chan%weight(chan%npt) )
+  Read(60,*) !skip one line
+  Do i = 1, chan%npt, 2
+     Read(60,*) chan%wv(i), chan%weight(i)
+     Write(6,*) "wv, response=", chan%wv(i), chan%weight(i)
+  Enddo
+  Do i = 2, chan%npt - 1, 2
+     chan%wv(i) = ( chan%wv(i-1) + chan%wv(i+1) )/2
+     chan%weight(i) = ( chan%weight(i-1) + chan%weight(i+1) ) /2
+  Enddo
+  Close(60)
 
   Write(6,*) "Finish SRF structure"
 
@@ -262,7 +279,7 @@ program lbl
      !      lay1        lay2
      ! trans1     tans2       trans3
      inst_wf(k) = ABS(inst_trans(k+1)-inst_trans(k)) / &
-                 ( LOG10(atms%pres(k+1)/atms%pres(k) ) )
+                 ( LOG(atms%pres(k+1)/atms%pres(k) ) )
      write(1000,*) atms%presl(k), inst_wf(k)
   Enddo
 
