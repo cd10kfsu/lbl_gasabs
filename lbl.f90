@@ -6,7 +6,18 @@ program lbl
 !
 !  purpose:
 !    a simplified line-by-line model for gas absorption. 
-!    Using Lorentz line shape, and only considering CO2_626, H2O_161
+!    (1) use Lorentz line shape
+!    (2) only considering CO2_626, H2O_161, O3_666
+!  
+!    in order to run the program, you need to prepare 
+!    (1) files containing absorption lines for the above gases in 
+!        directory ../co2 ../h2o ../o3
+!    (2) sounding data in ..
+!    (3) instrument spectral response function in ../SRF (optional)
+!
+!    the calculated weighting function is written in fort.1000
+!    column 1: layer pressure (hPa)
+!    column 2: dTrans/d(lnp)
 !
 !  revision history:
 !    2015-Nov-08     da    - creator
@@ -22,8 +33,9 @@ program lbl
   use type_define, only : i4, r8, &
                            t_atmos, t_absline, t_srf
   use math_func, only : linspace, trpint, linterp1d
-  use atmos, only : destroy_atmos
-  use gas_absorption, only : co2, h2o, calculate_layer_od, destroy_absline
+  use atmos, only : create_atmos, destroy_atmos
+  use gas_absorption, only : co2, h2o, o3, &
+                             calculate_layer_od, destroy_absline
 
   implicit none
 
@@ -44,6 +56,9 @@ program lbl
   real(r8),allocatable :: inst_trans(:) ! nlayer
   real(r8),allocatable :: inst_wf(:) ! nlayer
 
+! vars to record run time
+  real(r8) :: tic, toc
+
 ! temp vars
   integer(i4) :: i4tmp
   real(r8) :: r8tmp
@@ -51,23 +66,20 @@ program lbl
 
 
 
+  Call cpu_time( tic )
 !---------------------------------------------------------------------
 ! 1. create & fill in atmosphere structure
 !---------------------------------------------------------------------
 
 !---1.1 create atmosphere structure
-  atms%nlevel = 43
-  atms%nlayer = atms%nlevel - 1
-  atms%ngas   = 2
-
-  Allocate( atms%pres(atms%nlevel), atms%z(atms%nlevel), &
-            atms%temp(atms%nlevel), atms%gas(atms%nlevel,atms%ngas) )
-  Allocate( atms%presl(atms%nlayer), atms%dz(atms%nlayer), &
-            atms%templ(atms%nlayer), atms%gasl(atms%nlayer,atms%ngas) )
+  ! create atmos structure with 43 levels (42 layers), 
+  ! and 3 kinds of gases
+  ! gas 1: H2O, gas 2: O3 gas, 3: CO2
+  Call create_atmos( atms, 43, 3 )
 
 !---1.2 read in level vars
   Allocate( r8tmp2d(atms%nlevel,6) )
-
+  ! sounding data is from surface to TOA
   Open(10,file="../sounding.dat",action="read")
   Read(10,*)
   Do i = 1, atms%nlevel
@@ -75,11 +87,14 @@ program lbl
   Enddo
   Close(10)
 
+  ! atmos structure requires input from TOA to sfc
   atms%pres(:)  = r8tmp2d(atms%nlevel:1:-1,1)/100  ! level pres (hPa)
   atms%temp(:)  = r8tmp2d(atms%nlevel:1:-1,2)  ! level temp (K)
   atms%z(:)     = r8tmp2d(atms%nlevel:1:-1,3)  ! level height (m)
   atms%gas(:,1) = r8tmp2d(atms%nlevel:1:-1,4)  ! H2O VMR
-  atms%gas(:,2) = r8tmp2d(atms%nlevel:1:-1,6)  ! CO2 VMR
+  atms%gas(:,2) = r8tmp2d(atms%nlevel:1:-1,5)  ! O3 VMR
+  !atms%gas(:,2) = 0._r8
+  atms%gas(:,3) = r8tmp2d(atms%nlevel:1:-1,6)  ! CO2 VMR
   
   Deallocate( r8tmp2d )
   ! check point: level values
@@ -89,7 +104,7 @@ program lbl
   !Enddo
 
 
-!---1.3 intepolate level vars to layers
+!---1.3 average level vars to layers
 ! TOA                    SFC
 !  o----------o-----------o
 ! lev1       lev2        lev3
@@ -99,9 +114,9 @@ program lbl
      atms%templ(i)  = ( atms%temp(i) + atms%temp(i+1) )/2
      atms%dz(i)    = atms%z(i) - atms%z(i+1)
      atms%gasl(i,:) = ( atms%gas(i,:) + atms%gas(i+1,:) )/2
-     ! check point: interpolated layer values
-     !Write(200,"(3(F11.2,1X),2(E10.3,1X))") &
-     !atms%presl(i), atms%templ(i), atms%dz(i), atms%gasl(i,1), atms%gasl(i,2)
+     ! check point: layer values
+     Write(200,"(3(F11.2,1X),4(E10.3,1X))") &
+     atms%presl(i), atms%templ(i), atms%dz(i), (atms%gasl(i,k),k=1,atms%ngas)
   Enddo
 
   Write(6,*) "Finish loading atmospheric profile"
@@ -167,7 +182,7 @@ program lbl
   Enddo
   Close(40)
 
-!----2.1.2 read in total internal partition function table of H2O
+!----2.2.2 read in total internal partition function table of H2O
 !          only considering H2O_161
   h2o%nq = 271  ! 70K ~ 340K
   Allocate( h2o%qtable_t(h2o%nq), h2o%qtable_q(h2o%nq) )
@@ -181,6 +196,41 @@ program lbl
   Close(50)
 
   Write(6,*) "Finish loading absoprtion lines for H2O_161"
+
+
+!---2.3 create & fill in absorption line stucture for O3
+!----2.3.1 create & fill in line strcture for O3_666
+  o3%nline = 2125 ! 5X chan1
+  o3%frac  = .992901_r8
+  Allocate( o3%wv(o3%nline), o3%s(o3%nline), &
+            o3%gamma_air(o3%nline), &
+            o3%gamma_self(o3%nline), o3%wvshift(o3%nline), &
+            o3%nair(o3%nline), o3%en(o3%nline) )
+  Open(41,file="../o3/O3_chan1.out",action="read")
+  !Open(41,file="../o3/O3_chan1.txt",action="read")
+  Do i = 1, o3%nline
+     Read(41,*) i4tmp, o3%wv(i), o3%s(i), r8tmp, o3%gamma_air(i), &
+                o3%gamma_self(i), o3%en(i), o3%nair(i), o3%wvshift(i)
+     ! check point: o3 absorption line
+     !Write(410,*) i4tmp, o3%wv(i), o3%s(i), r8tmp, o3%gamma_air(i), &
+     !        o3%gamma_self(i), o3%en(i), o3%nair(i), o3%wvshift(i)
+  Enddo
+  Close(41)
+
+!----2.3.2 read in total internal partition function table of O3
+!          only considering O3_666
+  o3%nq = 271  ! 70K ~ 340K
+  Allocate( o3%qtable_t(o3%nq), o3%qtable_q(o3%nq) )
+  Open(51,file="../parsum.dat",action="read")
+  Read(51,*)
+  Do i = 1, o3%nq
+     Read(51,*) o3%qtable_t(i), (r8tmp,k=1,14), o3%qtable_q(i)
+     ! check point: o3 Q table
+     Write(510,*) o3%qtable_t(i), o3%qtable_q(i)
+  Enddo
+  Close(51)
+
+  Write(6,*) "Finish loading absoprtion lines for O3_666"
 
 !---------------------------------------------------------------------
 ! 3. load instrument Spectral Response Function
@@ -232,7 +282,7 @@ program lbl
   Close(60)
   wv0 = tmpchan%wv(1)
   wv1 = tmpchan%wv(tmpchan%npt)
-  chan%npt = 20 * tmpchan%npt 
+  chan%npt = 50 * tmpchan%npt 
   Write(6,*) "interpolated SRF points=", chan%npt
   Call linspace( wv0, wv1, chan%npt, chan%wv )
   Allocate( chan%weight(chan%npt) )
@@ -328,5 +378,10 @@ program lbl
    Deallocate( chan%wv, chan%weight )
    Deallocate( layer_od, level_trans )
    Deallocate( inst_trans, inst_wf )
+
+   Call cpu_time( toc )
+
+   Write(6,*) "run time=", toc-tic, "seconds."
+
 
 endprogram

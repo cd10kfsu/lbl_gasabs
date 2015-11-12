@@ -19,6 +19,8 @@ module type_define
 !$$$ end documentation block
   implicit none
 
+  public 
+
   integer,parameter :: i4 = 4
   integer,parameter :: i8 = 8
   

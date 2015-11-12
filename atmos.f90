@@ -21,26 +21,42 @@ module atmos
   implicit none
 
   private
+  public :: create_atmos
   public :: destroy_atmos
 
 Contains
 
-subroutine destroy_atmos( atms )
+subroutine create_atmos( atmos, nlevel, ngas )
+  implicit none
+  type(t_atmos), intent(inout) :: atmos
+  integer(i4),   intent(in) :: nlevel
+  integer(i4),   intent(in) :: ngas
+
+  atmos%nlevel = nlevel
+  atmos%nlayer = atmos%nlevel - 1
+  atmos%ngas   = ngas
+  Allocate( atmos%pres(atmos%nlevel), atmos%z(atmos%nlevel), &
+            atmos%temp(atmos%nlevel), atmos%gas(atmos%nlevel,atmos%ngas) )
+  Allocate( atmos%presl(atmos%nlayer), atmos%dz(atmos%nlayer), &
+            atmos%templ(atmos%nlayer), atmos%gasl(atmos%nlayer,atmos%ngas) )
+endsubroutine
+
+subroutine destroy_atmos( atmos )
   implicit none
 
-  type(t_atmos), intent(inout) :: atms
+  type(t_atmos), intent(inout) :: atmos
   
-  atms%nlayer = 0
-  atms%nlevel = 0
-  atms%ngas   = 0
-  If (Allocated(atms%pres))  Deallocate( atms%pres )
-  If (Allocated(atms%z))     Deallocate( atms%z )
-  If (Allocated(atms%temp))  Deallocate( atms%temp ) 
-  If (Allocated(atms%gas))   Deallocate( atms%gas )
-  If (Allocated(atms%dz))    Deallocate( atms%dz )
-  If (Allocated(atms%presl)) Deallocate( atms%presl )
-  If (Allocated(atms%templ)) Deallocate( atms%templ )
-  If (Allocated(atms%gasl))  Deallocate( atms%gasl )
+  atmos%nlayer = 0
+  atmos%nlevel = 0
+  atmos%ngas   = 0
+  If (Allocated(atmos%pres))  Deallocate( atmos%pres )
+  If (Allocated(atmos%z))     Deallocate( atmos%z )
+  If (Allocated(atmos%temp))  Deallocate( atmos%temp ) 
+  If (Allocated(atmos%gas))   Deallocate( atmos%gas )
+  If (Allocated(atmos%dz))    Deallocate( atmos%dz )
+  If (Allocated(atmos%presl)) Deallocate( atmos%presl )
+  If (Allocated(atmos%templ)) Deallocate( atmos%templ )
+  If (Allocated(atmos%gasl))  Deallocate( atmos%gasl )
 
 endsubroutine
 

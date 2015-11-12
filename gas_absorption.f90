@@ -21,11 +21,12 @@ module gas_absorption
   use math_func, only : linterp1d
 
   private
-  public :: co2, h2o
+  public :: co2, o3, h2o
   public :: calculate_layer_od
   public :: destroy_absline
 
   type(t_absline), save :: co2 ! CO2/626
+  type(t_absline), save :: o3 ! O3/666
   type(t_absline), save :: h2o ! H2O/161
 
   real(r8), parameter :: tref = 296._r8 ! reference temperature (K)
@@ -73,36 +74,9 @@ function calculate_layer_od( wv, presl, templ, dz, ngas, gasvmr ) &
 
   odl = 0.0_r8
 !---------------------------------------------------------------------
-! 1. CO2 absorption
+! 1. H2O absorption
 !---------------------------------------------------------------------
-!---1.1 CO2_626
-  ! find Q at layer temperature & reference tempearture
-  q0 = linterp1d( co2%nq, co2%qtable_t, co2%qtable_q, templ )
-  qref = linterp1d( co2%nq, co2%qtable_t, co2%qtable_q, tref )
-  ! accumlate intensity over all lines
-  Do i = 1, co2%nline
-     gamma0 = (tref/templ)**co2%nair(i) * &
-           ( co2%gamma_air(i) *(1-gasvmr(2))*presl*hpa2atm + &
-             co2%gamma_self(i)*gasvmr(2)    *presl*hpa2atm )
-     wv0 = co2%wv(i) + co2%wvshift(i)*presl*hpa2atm
-     ! assuming Lorentz line
-     ! line shape
-     f0 = gamma0/( gamma0*gamma0+(wv-wv0)*(wv-wv0) )/pi
-     ! line strength
-     s0 = co2%s(i) * &
-         (qref*exp(-c2*co2%en(i)/templ)*(1-exp(-c2*co2%wv(i)/templ)) )/ &
-         (q0  *exp(-c2*co2%en(i)/tref )*(1-exp(-c2*co2%wv(i)/tref )) )
-     ! monochromatic absorption coeff ( 1/(molecule cm^-2) )
-     kabs0 = s0 * f0
-     ! number density of isotop
-     n0 = co2%frac*gasvmr(2)*presl*100/kB/templ
-     ! accumulate optical depth
-     odl = odl + n0*kabs0*1.D-4*dz
-  Enddo
-
-!---------------------------------------------------------------------
-! 2. H2O absorption
-!---------------------------------------------------------------------
+  If ( abs(gasvmr(1)) > 1.d-10 ) Then
 !---1.1 H2O_161
   ! find Q at layer temperature & reference tempearture
   q0 = linterp1d( h2o%nq, h2o%qtable_t, h2o%qtable_q, templ )
@@ -127,6 +101,70 @@ function calculate_layer_od( wv, presl, templ, dz, ngas, gasvmr ) &
      ! accumulate optical depth
      odl = odl + n0*kabs0*1.D-4*dz
   Enddo
+
+  Endif
+
+!---------------------------------------------------------------------
+! 2. O3 absorption
+!---------------------------------------------------------------------
+  If ( abs(gasvmr(2)) > 1.d-10 ) Then
+!---2.1 O3_666
+  ! find Q at layer temperature & reference tempearture
+  q0 = linterp1d( o3%nq, o3%qtable_t, o3%qtable_q, templ )
+  qref = linterp1d( o3%nq, o3%qtable_t, o3%qtable_q, tref )
+  ! accumlate intensity over all lines
+  Do i = 1, o3%nline
+     gamma0 = (tref/templ)**o3%nair(i) * &
+           ( o3%gamma_air(i) *(1-gasvmr(2))*presl*hpa2atm + &
+             o3%gamma_self(i)*gasvmr(2)    *presl*hpa2atm )
+     wv0 = o3%wv(i) + o3%wvshift(i)*presl*hpa2atm
+     ! assuming Lorentz line
+     ! line shape
+     f0 = gamma0/( gamma0*gamma0+(wv-wv0)*(wv-wv0) )/pi
+     ! line strength
+     s0 = o3%s(i) * &
+         (qref*exp(-c2*o3%en(i)/templ)*(1-exp(-c2*o3%wv(i)/templ)) )/ &
+         (q0  *exp(-c2*o3%en(i)/tref )*(1-exp(-c2*o3%wv(i)/tref )) )
+     ! monochromatic absorption coeff ( 1/(molecule cm^-2) )
+     kabs0 = s0 * f0
+     ! number density of isotop
+     n0 = o3%frac*gasvmr(2)*presl*100/kB/templ
+     ! accumulate optical depth
+     odl = odl + n0*kabs0*1.D-4*dz
+  Enddo
+
+  Endif
+
+!---------------------------------------------------------------------
+! 3. CO2 absorption
+!---------------------------------------------------------------------
+  If ( abs(gasvmr(3)) > 1.0d-10 ) Then
+!---3.1 CO2_626
+  ! find Q at layer temperature & reference tempearture
+  q0 = linterp1d( co2%nq, co2%qtable_t, co2%qtable_q, templ )
+  qref = linterp1d( co2%nq, co2%qtable_t, co2%qtable_q, tref )
+  ! accumlate intensity over all lines
+  Do i = 1, co2%nline
+     gamma0 = (tref/templ)**co2%nair(i) * &
+           ( co2%gamma_air(i) *(1-gasvmr(3))*presl*hpa2atm + &
+             co2%gamma_self(i)*gasvmr(3)    *presl*hpa2atm )
+     wv0 = co2%wv(i) + co2%wvshift(i)*presl*hpa2atm
+     ! assuming Lorentz line
+     ! line shape
+     f0 = gamma0/( gamma0*gamma0+(wv-wv0)*(wv-wv0) )/pi
+     ! line strength
+     s0 = co2%s(i) * &
+         (qref*exp(-c2*co2%en(i)/templ)*(1-exp(-c2*co2%wv(i)/templ)) )/ &
+         (q0  *exp(-c2*co2%en(i)/tref )*(1-exp(-c2*co2%wv(i)/tref )) )
+     ! monochromatic absorption coeff ( 1/(molecule cm^-2) )
+     kabs0 = s0 * f0
+     ! number density of isotop
+     n0 = co2%frac*gasvmr(3)*presl*100/kB/templ
+     ! accumulate optical depth
+     odl = odl + n0*kabs0*1.D-4*dz
+  Enddo
+
+  Endif
 
 
 endfunction
