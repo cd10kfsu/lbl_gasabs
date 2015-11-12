@@ -112,13 +112,16 @@ program lbl
 
 !---2.1 create & fill in absorption line stucture for CO2
 !----2.1.1 create & fill in line strcture for CO2_626
-  co2%nline = 1212
+  !co2%nline = 1212 ! 1X chan1
+  !co2%nline = 2623 ! 1X chan2
+  co2%nline = 2217 ! 5X chan1
   co2%frac  = .984204_r8
   Allocate( co2%wv(co2%nline), co2%s(co2%nline), &
             co2%gamma_air(co2%nline), &
             co2%gamma_self(co2%nline), co2%wvshift(co2%nline), &
             co2%nair(co2%nline), co2%en(co2%nline) )
-  Open(20,file="../co2/CO2_chan1.txt",action="read")
+  Open(20,file="../co2/CO2_chan1.out",action="read")
+  !Open(20,file="../co2/CO2_chan1.txt",action="read")
   Do i = 1, co2%nline
      Read(20,*) i4tmp, co2%wv(i), co2%s(i), r8tmp, co2%gamma_air(i), &
                 co2%gamma_self(i), co2%en(i), co2%nair(i), co2%wvshift(i)
@@ -145,13 +148,16 @@ program lbl
          
 !---2.2 create & fill in absorption line stucture for H2O
 !----2.2.1 create & fill in line strcture for H2O_161
-  h2o%nline = 35
+  !h2o%nline = 35 ! 1X chan1
+  !h2o%nline = 141 ! 1X chan2
+  h2o%nline = 97 ! 5X chan1
   h2o%frac  = .997317_r8
   Allocate( h2o%wv(h2o%nline), h2o%s(h2o%nline), &
             h2o%gamma_air(h2o%nline), &
             h2o%gamma_self(h2o%nline), h2o%wvshift(h2o%nline), &
             h2o%nair(h2o%nline), h2o%en(h2o%nline) )
-  Open(40,file="../h2o/H2O_chan1.txt",action="read")
+  Open(40,file="../h2o/H2O_chan1.out",action="read")
+  !Open(40,file="../h2o/H2O_chan1.txt",action="read")
   Do i = 1, h2o%nline
      Read(40,*) i4tmp, h2o%wv(i), h2o%s(i), r8tmp, h2o%gamma_air(i), &
                 h2o%gamma_self(i), h2o%en(i), h2o%nair(i), h2o%wvshift(i)
@@ -194,10 +200,11 @@ program lbl
   !Enddo
 
 !---Option 2: operational SRF
-  !Open(60,file="../SRF/rtcoef_noaa_18_hirs_srf_ch01.txt",action="read")
+  !Open(60,file="../SRF/rtcoef_noaa_18_hirs_srf_ch02.txt",action="read")
   !Read(60,*); Read(60,*)  !skip two rows
   !Read(60,*) chan%npt
   !chan%npt = 2*chan%npt -1 
+  !chan%npt = chan%npt
   !Write(6,*) "SRF points=", chan%npt
   !Allocate( chan%wv(chan%npt), chan%weight(chan%npt) )
   !Read(60,*) !skip one row
@@ -226,7 +233,7 @@ program lbl
   wv0 = tmpchan%wv(1)
   wv1 = tmpchan%wv(tmpchan%npt)
   chan%npt = 20 * tmpchan%npt 
-  Write(6,*) "interpolated SRF points=", tmpchan%npt
+  Write(6,*) "interpolated SRF points=", chan%npt
   Call linspace( wv0, wv1, chan%npt, chan%wv )
   Allocate( chan%weight(chan%npt) )
   Do i = 1, chan%npt
@@ -234,8 +241,6 @@ program lbl
                       chan%wv(i) )
   Enddo
   Deallocate( tmpchan%weight, tmpchan%wv )
-
-
 
   Write(6,*) "Finish SRF structure"
 
