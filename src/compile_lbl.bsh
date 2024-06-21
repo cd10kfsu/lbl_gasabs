@@ -1,0 +1,5 @@
+#!/bin/bash -xe
+
+FOPTS="-cpp -DOMP -fopenmp"  # use openmp to accelerate
+#FOPTS="-cpp" # serial version
+gfortran $FOPTS -O2 type_define.f90 math_func.f90 atmos.f90 gas_absorption.f90 lbl.f90 -o lbl.exe
