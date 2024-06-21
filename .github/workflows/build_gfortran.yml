@@ -1,0 +1,39 @@
+name: build_gfortran
+
+on:
+  push:
+  pull_request:
+
+env:
+  BUILD_TYPE: Debug
+
+jobs:
+  cmake_build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: "install NetCDF, HDF4, HDF5"
+      run: |
+           sudo apt-get update
+           ulimit -s unlimited
+
+    - name: "check version and envs"
+      run: |
+           echo "===============================" && gcc -v
+           echo "===============================" && gfortran -v
+           echo "===============================" && pwd
+           echo "===============================" && ulimit -a
+
+    - name: "build & run"
+      run: |
+           cd ${{github.workspace}}/src
+           ./compile_lbl.bsh
+           ls -al
+           ./lbl.exe
+           ls -al
+           cat fort.1000
+
+
+
