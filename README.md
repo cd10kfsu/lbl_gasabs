@@ -6,6 +6,8 @@
 
 Author: Cheng Da  Email: cda@umd.edu
 
+![banner](logo_lbl_gasabs.png)
+
 Don't know what you can do even after learning radiative transfer? Don't worry! Let's build a toy radiative transfer model from scratch! Exactly the same way how we learn data assimilation using the Lorenz-63 model.
 
 This repo presents a simplified model for line-by-line calculation of gas absorption using HITRAN database.
